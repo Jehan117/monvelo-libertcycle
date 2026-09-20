@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Mon Vélo — Libert’Cycle</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f4f3f1; margin: 0; padding: 20px; color: #18181b; }
+    main { max-width: 430px; margin: auto; }
+    .hero, .card { border-radius: 24px; padding: 20px; margin-bottom: 14px; overflow-wrap: anywhere; }
+    .hero { background: #171516; color: #fff; }
+    .card { background: #fff; }
+    .badge { float: right; background: #ffffff18; padding: 7px 10px; border-radius: 20px; font-size: 12px; }
+    .brand { display: inline-block; padding-top: 7px; }
+    h1 { font-size: 25px; line-height: 1.05; }
+    h2 { font-size: 20px; margin: 0 0 16px; }
+    h3 { font-size: 16px; margin: 8px 0; }
+    .sub { color: #ccc; line-height: 1.5; }
+    .code { display: inline-block; background: #fff; color: #a54a3a; border-radius: 20px; padding: 6px 10px; font-weight: 700; font-size: 12px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .item { border: 1px solid #e4e4e4; border-radius: 13px; padding: 10px; min-width: 0; }
+    .item span { display: block; color: #777; font-size: 11px; margin-bottom: 4px; }
+    .row { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid #eee; }
+    .row b { text-align: right; max-width: 60%; }
+    .row:last-child { border-bottom: 0; }
+    .empty, .meta { color: #666; font-size: 14px; line-height: 1.5; }
+    .empty { margin-bottom: 0; }
+    .documents, .history { list-style: none; padding: 0; margin: 0; }
+    .documents li + li, .history li + li { border-top: 1px solid #eee; }
+    .documents a { display: flex; justify-content: space-between; gap: 12px; color: #93402f; padding: 14px 0; text-decoration: none; font-weight: 600; }
+    .documents a:hover { text-decoration: underline; }
+    .history li { padding: 14px 0; }
+    .history li:first-child { padding-top: 0; }
+    .history li:last-child { padding-bottom: 0; }
+    .details { white-space: pre-line; line-height: 1.5; margin: 8px 0 0; }
+    button { border: 0; border-radius: 14px; background: #171516; color: white; padding: 12px 18px; font: inherit; cursor: pointer; }
+    a:focus-visible, button:focus-visible { outline: 3px solid #a54a3a; outline-offset: 4px; }
+    footer { text-align: center; font-size: 12px; color: #777; padding: 6px 0 18px; }
+    @media (max-width: 360px) { body { padding: 12px; } .hero, .card { padding: 16px; } .badge { float: none; display: table; margin-bottom: 10px; } }
+  </style>
+</head>
+<body>
+  <main id="app" aria-live="polite" aria-busy="true"><div class="card" role="status">Chargement de votre vélo…</div></main>
+  <noscript><p>Activez JavaScript pour consulter le passeport de votre vélo.</p></noscript>
+  <footer>LIBERT’CYCLE · Passeport vélo</footer>
+  <script>
+    'use strict';
+    // Configuration publique reprise de la version existante.
+    const SUPABASE_URL = 'https://etmlefkikovuutxrgmyr.supabase.co';
+    const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_X55ihHD7iFeTtkipP0EPJA_ORLa9C_R';
+    const app = document.getElementById('app');
+    const escapeHTML = value => String(value).replace(/[&<>"']/g, character => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]));
+    const hasValue = value => value !== null && value !== undefined && value !== '';
+    const val = (value, suffix = '') => hasValue(value) ? escapeHTML(value) + escapeHTML(suffix) : '—';
+    const row = (label, value) => `<div class="row"><span>${escapeHTML(label)}</span><b>${value}</b></div>`;
+    const item = (label, value) => `<div class="item"><span>${escapeHTML(label)}</span><b>${value}</b></div>`;
+    function dateLabel(value) {
+      if (!hasValue(value)) return '—';
+      const match = /^(\d{4})-(\d{2})-(\d{2})(?:$|T)/.exec(String(value));
+      return match ? `${match[3]}/${match[2]}/${match[1]}` : escapeHTML(value);
+    }
+    function getCode() {
+      const query = new URLSearchParams(location.search);
+      const path = location.pathname.match(/\/v\/([^/]+)\/?$/);
+      // Le vélo de démonstration reste le défaut, comme dans la version initiale.
+      const code = (query.has('code') ? query.get('code') : path ? decodeURIComponent(path[1]) : '7K4P2X').trim();
+      if (!/^[A-Za-z0-9_-]{1,100}$/.test(code)) throw new Error('L’identifiant du vélo est invalide. Vérifiez le lien ou scannez à nouveau votre puce NFC.');
+      return code;
+    }
+    function documentURL(value) {
+      try {
+        const url = new URL(value);
+        return ['https:', 'http:'].includes(url.protocol) && !url.username && !url.password ? url.href : null;
+      } catch { return null; }
+    }
+    function renderDocuments(value) {
+      const documents = (Array.isArray(value) ? value : []).filter(doc => doc && typeof doc === 'object' && documentURL(doc.url));
+      if (!documents.length) return '<p class="empty">Aucun document disponible pour le moment.</p>';
+      return `<ul class="documents">${documents.map(doc => `<li><a href="${escapeHTML(documentURL(doc.url))}" target="_blank" rel="noopener noreferrer">${val(doc.titre || 'Consulter le document')}<span aria-hidden="true">↗</span><span class="meta">Nouvel onglet</span></a></li>`).join('')}</ul>`;
+    }
+    function renderHistory(value) {
+      const entries = (Array.isArray(value) ? value : []).filter(entry => entry && typeof entry === 'object' && !Array.isArray(entry));
+      entries.sort((a, b) => (Date.parse(b.date) || 0) - (Date.parse(a.date) || 0));
+      if (!entries.length) return '<p class="empty">Aucun entretien enregistré pour le moment.</p>';
+      return `<ol class="history">${entries.map(entry => `<li><div class="meta">${dateLabel(entry.date)}${hasValue(entry.kilometrage) ? ' · ' + val(entry.kilometrage, ' km') : ''}</div><h3>${val(entry.titre || 'Entretien')}</h3>${hasValue(entry.details) ? `<p class="details">${val(entry.details)}</p>` : ''}</li>`).join('')}</ol>`;
+    }
+    function renderBike(v) {
+      app.innerHTML = `<section class="hero"><span class="badge">Passeport vélo</span><b class="brand">LIBERT’CYCLE</b><p>MON VÉLO</p><h1>${val(v.marque)} ${val(v.modele)}</h1><div class="sub">Taille ${val(v.taille)} · Modèle ${val(v.annee)}${hasValue(v.batterie) ? ' · ' + val(v.batterie) : ''}</div><p class="code">Identifiant : ${val(v.code)}</p></section>
+        <section class="card"><h2>⚙️ Mes réglages</h2><div class="grid">${item('Pneu avant', val(v.pression_av, ' bar'))}${item('Pneu arrière', val(v.pression_ar, ' bar'))}${item('Fourche', val(v.pression_fourche, ' psi'))}${item('Amortisseur', val(v.pression_amortisseur, ' psi'))}</div>${row('Rebond fourche', val(v.rebond_fourche, ' clics'))}${row('Rebond amortisseur', val(v.rebond_amortisseur, ' clics'))}</section>
+        <section class="card"><h2>🚲 Informations</h2>${row('N° de série', val(v.numero_serie))}${row('Marquage antivol', val(v.type_marquage))}${row('N° de marquage', val(v.numero_marquage))}${row('Date de livraison', dateLabel(v.date_livraison))}${hasValue(v.moteur) ? row('Moteur', val(v.moteur)) : ''}</section>
+        <section class="card"><h2>📄 Documentation</h2>${renderDocuments(v.documentation)}</section>
+        <section class="card"><h2>🔧 Historique d’entretien</h2>${renderHistory(v.historique_entretien)}</section>`;
+    }
+    async function loadBike() {
+      app.setAttribute('aria-busy', 'true');
+      app.innerHTML = '<div class="card" role="status">Chargement de votre vélo…</div>';
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
+      try {
+        const code = getCode();
+        const url = new URL(SUPABASE_URL + '/rest/v1/velos');
+        url.search = new URLSearchParams({code: 'eq.' + code, select: '*', limit: '2'}).toString();
+        // Une publishable key s’envoie dans apikey, pas comme jeton utilisateur Bearer.
+        const response = await fetch(url, {headers: {apikey: SUPABASE_PUBLISHABLE_KEY, Accept: 'application/json'}, signal: controller.signal, cache: 'no-store'});
+        if (!response.ok) throw new Error('Le passeport est temporairement indisponible (code ' + response.status + '). Réessayez ou contactez Libert’Cycle.');
+        const bikes = await response.json();
+        if (!Array.isArray(bikes)) throw new Error('La réponse du serveur est invalide.');
+        if (!bikes.length) throw new Error('Aucun vélo accessible avec l’identifiant ' + code + '. Vérifiez votre lien ou contactez Libert’Cycle.');
+        if (bikes.length > 1) throw new Error('Cet identifiant correspond à plusieurs vélos. Contactez Libert’Cycle.');
+        renderBike(bikes[0]);
+      } catch (error) {
+        const message = error.name === 'AbortError' ? 'Le serveur met trop de temps à répondre. Veuillez réessayer.' : error instanceof TypeError ? 'Connexion impossible. Vérifiez votre accès à Internet puis réessayez.' : error.message;
+        app.innerHTML = `<section class="card" role="alert"><h2>Impossible de charger le vélo</h2><p>${escapeHTML(message)}</p><button type="button" id="retry">Réessayer</button></section>`;
+        document.getElementById('retry').addEventListener('click', loadBike);
+      } finally {
+        clearTimeout(timeout);
+        app.setAttribute('aria-busy', 'false');
+      }
+    }
+    loadBike();
+  </script>
+</body>
+</html>
